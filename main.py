@@ -41,7 +41,7 @@ parser.add_argument('--show', type=bool, default=False,
 args = parser.parse_args()
 
 
-def process(model, trainer, data, label, is_test_data):
+def train(model, trainer, data, label):
     softmax_cross_entropy = gluon.loss.SoftmaxCrossEntropyLoss()
     data_iter = PTBDataIter(data,
                           nwords=args.nwords,
@@ -49,7 +49,7 @@ def process(model, trainer, data, label, is_test_data):
                           edim=args.edim,
                           mem_size=args.mem_size,
                           init_hid=args.init_hid,
-                          is_test_data=is_test_data)
+                          is_test_data=False)
     N = int(math.ceil(len(data) / args.batch_size))
     cost = 0.0
     if args.show:
@@ -70,6 +70,29 @@ def process(model, trainer, data, label, is_test_data):
     if args.show: bar.finish()
     return cost/N/args.batch_size
 
+def test(model, data, label):
+    softmax_cross_entropy = gluon.loss.SoftmaxCrossEntropyLoss()
+    data_iter = PTBDataIter(data,
+                          nwords=args.nwords,
+                          batch_size=args.batch_size,
+                          edim=args.edim,
+                          mem_size=args.mem_size,
+                          init_hid=args.init_hid,
+                          is_test_data=True)
+    N = int(math.ceil(len(data) / args.batch_size))
+    cost = 0.0
+    if args.show:
+        from utils import ProgressBar
+        bar = ProgressBar(label, max=N)
+    for batch in data_iter:
+        if args.show: bar.next()
+        out = model(*batch.data)
+        loss = softmax_cross_entropy(out, batch.label[0])
+        cost += nd.sum(loss).asscalar()
+
+    if args.show: bar.finish()
+    return cost/N/args.batch_size
+
 def run(model, train_data, test_data):
     softmax_cross_entropy = gluon.loss.SoftmaxCrossEntropyLoss()
     trainer = gluon.Trainer(model.collect_params(), 'sgd', {'learning_rate': args.init_lr, 'momentum': 0})
@@ -77,8 +100,8 @@ def run(model, train_data, test_data):
     log_perp = []
     if not args.is_test:
         for idx in xrange(args.nepoch):
-            train_loss = process(model, trainer, train_data, 'Train', False)
-            test_loss = process(model, trainer, test_data, 'Validation', True)
+            train_loss = train(model, trainer, train_data, 'Train')
+            test_loss = test(model, test_data, 'Validation')
 
             # Logging
             log_loss.append([train_loss, test_loss])
@@ -118,8 +141,8 @@ def run(model, train_data, test_data):
             return
         model.load_params(os.path.join(args.checkpoint_dir, latest_file), mx.cpu())
 
-        valid_loss = process(model, trainer, train_data, 'Validation', False)
-        test_loss = process(model, trainer, test_data, 'Test', True)
+        valid_loss = train(model, trainer, train_data, 'Validation')
+        test_loss = test(model, test_data, 'Test')
 
         state = {
             'valid_perplexity': math.exp(valid_loss),
