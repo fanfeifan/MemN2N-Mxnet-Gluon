@@ -164,6 +164,7 @@ if __name__ == '__main__':
     idx2word = dict(zip(word2idx.values(), word2idx.keys()))
     args.nwords = len(word2idx)
 
+
     print(args)
 
     model = MemN2N(args)

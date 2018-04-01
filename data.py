@@ -74,6 +74,8 @@ class PTBDataIter(mx.io.DataIter):
         self.log_loss = []
         self.log_perp = []
 
+        self.m = mem_size - 1
+
     def reset(self):
         self.cursor = -self.batch_size
 
@@ -85,18 +87,18 @@ class PTBDataIter(mx.io.DataIter):
             self.time[:,t].fill(t)
 
         self.target.fill(0)
-        if self.is_test_data:
-            m = self.mem_size - 1
+        # if self.is_test_data:
+        #     m = self.mem_size - 1
         for b in xrange(self.batch_size):
             if self.is_test_data:
-                m += 1
-                if m >= len(self.data):
-                    m = self.mem_size
+                self.m += 1
+                if self.m >= len(self.data):
+                    break
             else:
-                m = random.randrange(self.mem_size, len(self.data))
+                self.m = random.randrange(self.mem_size, len(self.data))
             #  self.target[b][self.data[m]] = 1
-            self.target[b] = self.data[m]
-            self.context[b] = self.data[m - self.mem_size:m]
+            self.target[b] = self.data[self.m]
+            self.context[b] = self.data[self.m - self.mem_size:self.m]
 
         return self.cursor + self.batch_size <= self.num_data
 
