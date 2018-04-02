@@ -6,6 +6,7 @@ from model import MemN2N
 import mxnet as mx
 from mxnet import gluon, autograd, nd
 import math
+import random
 
 parser = argparse.ArgumentParser(description='Train a memory neural network')
 parser.add_argument('--edim', type=int, default=150,
@@ -43,28 +44,42 @@ args = parser.parse_args()
 
 def train(model, trainer, data, label):
     softmax_cross_entropy = gluon.loss.SoftmaxCrossEntropyLoss()
-    data_iter = PTBDataIter(data,
-                          nwords=args.nwords,
-                          batch_size=args.batch_size,
-                          edim=args.edim,
-                          mem_size=args.mem_size,
-                          init_hid=args.init_hid,
-                          is_test_data=False)
+    # data_iter = PTBDataIter(data,
+    #                       nwords=args.nwords,
+    #                       batch_size=args.batch_size,
+    #                       edim=args.edim,
+    #                       mem_size=args.mem_size,
+    #                       init_hid=args.init_hid,
+    #                       is_test_data=False)
     N = int(math.ceil(len(data) / args.batch_size))
     cost = 0.0
     if args.show:
         from utils import ProgressBar
         bar = ProgressBar(label, max=N)
-    for batch in data_iter:
+    x = nd.zeros((args.batch_size, args.edim))
+    x[:,:] = args.init_hid
+    time = nd.zeros((args.batch_size, args.mem_size))
+    for t in xrange(args.mem_size):
+        time[:,t] = t
+    target = nd.zeros((args.batch_size,))
+    context = nd.zeros((args.batch_size, args.mem_size))
+    for idx in range(N):
         if args.show: bar.next()
+        target[:] = 0
+        for b in xrange(args.batch_size):
+            m = random.randrange(args.mem_size, len(data))
+            target[b] = data[m]
+            context[b] = data[m - args.mem_size:m]
+    #for batch in data_iter:
+        #if args.show: bar.next()
         with autograd.record():
-            out = model(*batch.data)
-            loss = softmax_cross_entropy(out, batch.label[0])
+            out = model(x, time, context)
+            loss = softmax_cross_entropy(out, target)
             loss.backward()
             
         grads = [i.grad() for i in model.collect_params().values()]
         gluon.utils.clip_global_norm(grads, args.max_grad_norm)
-        trainer.step(len(batch.data[0]))
+        trainer.step(args.batch_size)
         cost += nd.sum(loss).asscalar()
 
     if args.show: bar.finish()
@@ -72,22 +87,39 @@ def train(model, trainer, data, label):
 
 def test(model, data, label):
     softmax_cross_entropy = gluon.loss.SoftmaxCrossEntropyLoss()
-    data_iter = PTBDataIter(data,
-                          nwords=args.nwords,
-                          batch_size=args.batch_size,
-                          edim=args.edim,
-                          mem_size=args.mem_size,
-                          init_hid=args.init_hid,
-                          is_test_data=True)
+    #data_iter = PTBDataIter(data,
+                          # nwords=args.nwords,
+                          # batch_size=args.batch_size,
+                          # edim=args.edim,
+                          # mem_size=args.mem_size,
+                          # init_hid=args.init_hid,
+                          # is_test_data=True)
     N = int(math.ceil(len(data) / args.batch_size))
     cost = 0.0
     if args.show:
         from utils import ProgressBar
         bar = ProgressBar(label, max=N)
-    for batch in data_iter:
+    x = nd.zeros((args.batch_size, args.edim))
+    x[:,:] = args.init_hid
+    time = nd.zeros((args.batch_size, args.mem_size))
+    for t in xrange(args.mem_size):
+        time[:,t] = t
+    target = nd.zeros((args.batch_size,))
+    context = nd.zeros((args.batch_size, args.mem_size))
+    m = args.mem_size
+    for idx in range(N):
+        target[:] = 0
+        for b in xrange(args.batch_size):
+            #m = random.randrange(args.mem_size, len(data))
+            target[b] = data[m]
+            context[b] = data[m - args.mem_size:m]
+            m += 1
+            if m >= len(data):break
+
+    #for batch in data_iter:
         if args.show: bar.next()
-        out = model(*batch.data)
-        loss = softmax_cross_entropy(out, batch.label[0])
+        out = model(x, time, context)
+        loss = softmax_cross_entropy(out, target)
         cost += nd.sum(loss).asscalar()
 
     if args.show: bar.finish()
