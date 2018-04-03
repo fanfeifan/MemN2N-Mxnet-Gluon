@@ -41,7 +41,7 @@ parser.add_argument('--show', type=bool, default=False,
                     help='print progress [False]')
 args = parser.parse_args()
 
-
+ctx = mx.gpu(1)
 def train(model, trainer, data, label):
     softmax_cross_entropy = gluon.loss.SoftmaxCrossEntropyLoss()
     # data_iter = PTBDataIter(data,
@@ -56,13 +56,13 @@ def train(model, trainer, data, label):
     if args.show:
         from utils import ProgressBar
         bar = ProgressBar(label, max=N)
-    x = nd.zeros((args.batch_size, args.edim))
+    x = nd.zeros((args.batch_size, args.edim),ctx=ctx)
     x[:,:] = args.init_hid
-    time = nd.zeros((args.batch_size, args.mem_size))
+    time = nd.zeros((args.batch_size, args.mem_size),ctx=ctx)
     for t in xrange(args.mem_size):
         time[:,t] = t
-    target = nd.zeros((args.batch_size,))
-    context = nd.zeros((args.batch_size, args.mem_size))
+    target = nd.zeros((args.batch_size,),ctx=ctx)
+    context = nd.zeros((args.batch_size, args.mem_size),ctx=ctx)
     for idx in range(N):
         if args.show: bar.next()
         target[:] = 0
@@ -77,8 +77,8 @@ def train(model, trainer, data, label):
             loss = softmax_cross_entropy(out, target)
             loss.backward()
             
-        grads = [i.grad() for i in model.collect_params().values()]
-        gluon.utils.clip_global_norm(grads, args.max_grad_norm)
+        #grads = [i.grad() for i in model.collect_params().values()]
+        #gluon.utils.clip_global_norm(grads, args.max_grad_norm)
         trainer.step(args.batch_size)
         cost += nd.sum(loss).asscalar()
 
@@ -99,13 +99,13 @@ def test(model, data, label):
     if args.show:
         from utils import ProgressBar
         bar = ProgressBar(label, max=N)
-    x = nd.zeros((args.batch_size, args.edim))
+    x = nd.zeros((args.batch_size, args.edim),ctx=ctx)
     x[:,:] = args.init_hid
-    time = nd.zeros((args.batch_size, args.mem_size))
+    time = nd.zeros((args.batch_size, args.mem_size),ctx=ctx)
     for t in xrange(args.mem_size):
         time[:,t] = t
-    target = nd.zeros((args.batch_size,))
-    context = nd.zeros((args.batch_size, args.mem_size))
+    target = nd.zeros((args.batch_size,),ctx=ctx)
+    context = nd.zeros((args.batch_size, args.mem_size),ctx=ctx)
     m = args.mem_size
     for idx in range(N):
         target[:] = 0
@@ -127,7 +127,7 @@ def test(model, data, label):
 
 def run(model, train_data, test_data):
     softmax_cross_entropy = gluon.loss.SoftmaxCrossEntropyLoss()
-    trainer = gluon.Trainer(model.collect_params(), 'sgd', {'learning_rate': args.init_lr, 'momentum': 0})
+    trainer = gluon.Trainer(model.collect_params(), 'adam', {'learning_rate': args.init_lr,'clip_gradient':5})
     log_loss = []
     log_perp = []
     if not args.is_test:
@@ -149,10 +149,10 @@ def run(model, train_data, test_data):
 
             # Learning rate annealing
             lr_decay = 1.5
-            if len(log_loss) > 1 and log_loss[idx][1] > log_loss[idx-1][1] * 0.9999:
-                print 'update learning rate from %.3f to %.3f' % (trainer.learning_rate, trainer.learning_rate/lr_decay)
-                trainer.set_learning_rate(trainer.learning_rate / lr_decay)
-            if trainer.learning_rate < 1e-5: break
+            #if len(log_loss) > 1 and log_loss[idx][1] > log_loss[idx-1][1] * 0.9999:
+            #    print 'update learning rate from %.3f to %.3f' % (trainer.learning_rate, trainer.learning_rate/lr_decay)
+            #    trainer.set_learning_rate(trainer.learning_rate / lr_decay)
+            #if trainer.learning_rate < 1e-5: break
 
             if idx % 10 == 0:
                 filename = "MemN2N-%d.model" % (idx)
@@ -200,7 +200,7 @@ if __name__ == '__main__':
     print(args)
 
     model = MemN2N(args)
-    model.collect_params().initialize(mx.init.Xavier())
+    model.collect_params().initialize(mx.init.Xavier(),ctx=ctx)
     print model
     if args.is_test:
         run(model, valid_data, test_data)
