@@ -127,7 +127,7 @@ def test(model, data, label):
 
 def run(model, train_data, test_data):
     softmax_cross_entropy = gluon.loss.SoftmaxCrossEntropyLoss()
-    trainer = gluon.Trainer(model.collect_params(), 'adam', {'learning_rate': args.init_lr,'clip_gradient':5})
+    trainer = gluon.Trainer(model.collect_params(), 'adam', {'learning_rate': args.init_lr})
     log_loss = []
     log_perp = []
     if not args.is_test:
