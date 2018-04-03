@@ -77,8 +77,8 @@ def train(model, trainer, data, label):
             loss = softmax_cross_entropy(out, target)
             loss.backward()
             
-        #grads = [i.grad() for i in model.collect_params().values()]
-        #gluon.utils.clip_global_norm(grads, args.max_grad_norm)
+        grads = [i.grad() for i in model.collect_params().values()]
+        gluon.utils.clip_global_norm(grads, args.max_grad_norm)
         trainer.step(args.batch_size)
         cost += nd.sum(loss).asscalar()
 
@@ -149,10 +149,10 @@ def run(model, train_data, test_data):
 
             # Learning rate annealing
             lr_decay = 1.5
-            #if len(log_loss) > 1 and log_loss[idx][1] > log_loss[idx-1][1] * 0.9999:
-            #    print 'update learning rate from %.3f to %.3f' % (trainer.learning_rate, trainer.learning_rate/lr_decay)
-            #    trainer.set_learning_rate(trainer.learning_rate / lr_decay)
-            #if trainer.learning_rate < 1e-5: break
+            if len(log_loss) > 1 and log_loss[idx][1] > log_loss[idx-1][1] * 0.9999:
+                print 'update learning rate from %.3f to %.3f' % (trainer.learning_rate, trainer.learning_rate/lr_decay)
+                trainer.set_learning_rate(trainer.learning_rate / lr_decay)
+            if trainer.learning_rate < 1e-5: break
 
             if idx % 10 == 0:
                 filename = "MemN2N-%d.model" % (idx)
